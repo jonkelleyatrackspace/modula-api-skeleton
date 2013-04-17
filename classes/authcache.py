@@ -5,9 +5,8 @@ import os, json                 # Obvious.
 import dateutil.parser          # Used heavily in tokenexpired()
 import time                     # Because time is time, man. ^^
 
-import logsystem
-classlog = logsystem.LogClass()
-
+import logging
+classlog = logging.getLogger(__name__)
 
 AUTH_US_PCKL_FILE   = "/tmp/authkey.usa.pckl"
 AUTH_UK_PCKL_FILE   = "/tmp/authkey.lon.pckl"
@@ -80,7 +79,7 @@ class RSAuth:
             try:
                 raise AuthExceptionCritical("Couldnt make request! Tried 3 times via requests lib and exausted.")
             except:
-                classlog.logger.critical("Auth failures are persistant. Tried 3 times. Failed.", exc_info=True)
+                classlog.critical("Auth failures are persistant. Tried 3 times. Failed.", exc_info=True)
         else:
             auth_payload = {
                 "auth": {
@@ -91,16 +90,16 @@ class RSAuth:
                 }
             }
 
-            classlog.logger.info("Using auth target URL: POST " + str(auth_endpointurl))
-            classlog.logger.debug("Using auth payload: " + str(json.dumps(auth_payload)))
-            classlog.logger.debug("Using headers: " + str(self.headers))
+            classlog.info("Using auth target URL: POST " + str(auth_endpointurl))
+            classlog.debug("Using auth payload: " + str(json.dumps(auth_payload)))
+            classlog.debug("Using headers: " + str(self.headers))
             try:
                 r = requestsd0390d4.post(auth_endpointurl, data=json.dumps(auth_payload), headers=self.headers)
                 self.check_http_response_status(r)
-                classlog.logger.debug("Auth exchange success!")
+                classlog.debug("Auth exchange success!")
             except:
                 message = "Exception from request to auth. Going to retry 5 times. CurrentTry:" + str(retries)
-                classlog.logger.error(message, exc_info=True)
+                classlog.error(message, exc_info=True)
                 retries+=1
                 self.authenticate(username, apikey, auth_endpointurl, retries)
 #
@@ -108,21 +107,21 @@ class RSAuth:
             try:
                 dataset = r.json()
                 self.token = dataset['access']['token']['id']
-                classlog.logger.debug('Access Token Id = ' + str(self.token))
+                classlog.debug('Access Token Id = ' + str(self.token))
                 self.expiration = dataset['access']['token']['expires']
-                classlog.logger.debug('Access Token Expires = ' + str(self.expiration))
+                classlog.debug('Access Token Expires = ' + str(self.expiration))
                 self.tenant_id = dataset['access']['token']['tenant']['id']
-                classlog.logger.debug('Access Token Tenant Id = ' + str(self.tenant_id))
+                classlog.debug('Access Token Tenant Id = ' + str(self.tenant_id))
 #                 set our headers with the token!
 #                self.headers['X-Auth-Token'] = self.token
                 self.service_catalog = dataset['access']['serviceCatalog']
-                classlog.logger.debug('Access ServiceCatalog = ' + str(self.service_catalog))
+                classlog.debug('Access ServiceCatalog = ' + str(self.service_catalog))
                 self.rawobject = dataset
                 self.status_code = r
-                classlog.logger.debug('Response Statuscode = ' + str(self.status_code))
+                classlog.debug('Response Statuscode = ' + str(self.status_code))
             except KeyError:
                 message="Could not aquire a dictionary object KeyError." + str(retries)
-                classlog.logger.error(message, exc_info=True)
+                classlog.error(message, exc_info=True)
                 retries+=1
                 self.authenticate(username, apikey, auth_endpointurl, retries)
 
@@ -148,7 +147,7 @@ class RSAuth:
             pass
         else:
             emsg="AUTH status_code: " + str(result.status_code) + " Expected [200 or 203]"
-            classlog.logger.error(emsg, exc_info=True)
+            classlog.error(emsg, exc_info=True)
             raise AuthException(emsg)
 
 
@@ -190,7 +189,7 @@ class identity(object):
         self.endpoint = None
 
         if "force" in kwargs:
-            classlog.logger.debug("Classidentity forcing newtoken")
+            classlog.debug("Classidentity forcing newtoken")
             self.isforce    = kwargs["force"]
         if "user" in kwargs:
             self.user       = kwargs["user"]
@@ -215,15 +214,15 @@ class identity(object):
         else:
             raise TypeError( "Requires kwarg region= usa or lon" )
 
-        classlog.logger.debug("COUNTRY_REGION="     + str(self.region))
-        classlog.logger.debug("PICKLE_FILE_SELECTED=" + str(self.picklefile))
+        classlog.debug("COUNTRY_REGION="     + str(self.region))
+        classlog.debug("PICKLE_FILE_SELECTED=" + str(self.picklefile))
 
  
         if self.isforce: # If someone forces a new token, I presume we must oblige.
-            classlog.logger.info("ISFORCE was set. Pulling new remote json dictionary.")
+            classlog.info("ISFORCE was set. Pulling new remote json dictionary.")
             self.remote() # Reload pickle to disk.
         else:
-            classlog.logger.info("ISFORCE was unset. Referencing local json dictionary.")
+            classlog.info("ISFORCE was unset. Referencing local json dictionary.")
 
 
     def tokenexpired(self, iso):
@@ -243,10 +242,10 @@ class identity(object):
         #self.logger.debug("Token time left: \t" + str(token_time_left))
 
         if token_time_left <= 1200: # Renew if expiring in 20 minutes.
-            classlog.logger.info("Fetching remote identity token. On-disk copy expired at " + str(str(auth_expire)))
+            classlog.info("Fetching remote identity token. On-disk copy expired at " + str(str(auth_expire)))
             return True
         else:
-            classlog.logger.info("Identity token is valid (on-disk) Expires in " + str(round(token_time_left,0)) + "(seconds) exactly at " + str(auth_expire))
+            classlog.info("Identity token is valid (on-disk) Expires in " + str(round(token_time_left,0)) + "(seconds) exactly at " + str(auth_expire))
             return False
 
     def remote(self):
@@ -260,7 +259,7 @@ class identity(object):
             pickle.dump(authjson, file) # Dump in pickle format
             file.close()
         except IOError:
-            classlog.logger.critical('Could not open pickle file.')
+            classlog.critical('Could not open pickle file.')
             raise AuthExceptionCritical('Could not open pickle file due to ioerror. Permissions maybe.')
 
     def getdict(self):
@@ -268,7 +267,7 @@ class identity(object):
             If object token is expired, it re-retrieves.
         """
         if not os.path.isfile(self.picklefile):
-            classlog.logger.info("Auth.Identity Pickle file is missing: " + str(self.picklefile) + " -> I'm pinging IDENTITY to create this file.")
+            classlog.info("Auth.Identity Pickle file is missing: " + str(self.picklefile) + " -> I'm pinging IDENTITY to create this file.")
             self.remote()
 
         access = os.access(self.picklefile, os.W_OK)
@@ -279,14 +278,14 @@ class identity(object):
                 file.close()
             except EOFError:
                 print "==============================================================================="
-                classlog.logger.critical( "Pickle serialized obje is broke! Delete file \n" + str(file) )
+                classlog.critical( "Pickle serialized obje is broke! Delete file \n" + str(file) )
                 print "==============================================================================="
 
             try:
                 expiration = mypickle['access']['token']['expires']
             except UnboundLocalError:
                 print "==============================================================================="
-                classlog.logger.critical( "Can't decode token from file! Dont know why...  \n" + str(file) )
+                classlog.critical( "Can't decode token from file! Dont know why...  \n" + str(file) )
                 print "==============================================================================="
 
             if self.tokenexpired(expiration):
@@ -295,7 +294,7 @@ class identity(object):
 
             return mypickle
         else:
-            classlog.logger.critical('Auth.Identity cannot read: ' + str(self.picklefile))
+            classlog.critical('Auth.Identity cannot read: ' + str(self.picklefile))
             raise AuthExceptionCritical('Auth.Identity cannot read: ' + str(self.picklefile))
 
     def get_token(self):
